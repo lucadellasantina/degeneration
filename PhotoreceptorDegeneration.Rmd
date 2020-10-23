@@ -1,0 +1,642 @@
+---
+title: "Mouse PR degeneration literature"
+subtitle: "Statistical modeling using multinomial regression"
+author: "Luca Della Santina, UCSF (Luca.DellaSantina@ucsf.edu)"
+date: "Updated: `r Sys.time()`"
+output:
+  html_document:
+    highlight: haddock
+    theme: default
+    code_folding: hide
+    df_print: paged
+    toc: yes
+    toc_depth: '4'
+    toc_float:
+      collapsed: no
+      smooth_scroll: yes
+---
+  
+# Summary
+  
+  Multinomial regression analysis of PR degeneration literature compiled by JL.
+  Purpose of the model is to understand which factors are important in determining a specific outcome (Stabilty vs Degeneration vs Compensation)
+  
+
+  
+# Preamble
+```{r preamble}
+require(car)
+require(reshape2)
+require(foreign)
+require(nnet)
+require(ggplot2)
+library(tidyverse)
+require(ztable)
+```
+
+# Load and format data
+Load the formatted data table provided by JL
+
+```{r load the data2, warning=FALSE, message=FALSE}
+library(readr)
+df <- read_csv("./PhotoreceptorLiterature_20201015.csv", 
+    col_types = cols(Outcome = col_factor(levels = c("Stability", 
+        "Degeneration", "Compensation")), 
+        Method = col_factor(levels = c("Str","Fun")), 
+        Perturbation = col_factor(levels = c("Dev","Mat")), 
+        RodCone = col_factor(levels = c("Rod","Cone", "RodCone")), 
+        Rod_YN = col_factor(levels = c("NotRod","Rod")), 
+        Cone_YN = col_factor(levels = c("NotCone","Cone")), 
+        Phototransduction_YN = col_factor(levels = c("NotPT","Phototransduction")), 
+        Signaling_YN = col_factor(levels = c("NotSig","Signaling")), 
+        Trafficking_YN = col_factor(levels = c("NotTff","Trafficking")), 
+        Metabolism_YN = col_factor(levels = c("Notmet","Meta")), 
+        ImmuneDNA_YN = col_factor(levels = c("NotImmune","Immune")), 
+        TF_YN = col_factor(levels = c("NotTF","TF")), 
+        ManipulationFull = col_factor(levels = c("Phototransduction","Signaling", "Trafficking", "Meta","Immune", "TF")),
+        Manipulation = col_factor(levels = c("Phototransduction", "Signaling", "Trafficking", "Others"))))
+#View(df)
+```
+# Frequency tables
+
+Contingency tables for each factor, expressed first as absolute count then as percent frequency for each factor's level
+
+```{r Exploratory tables}
+
+writeLines("Method of investigation (Str= Structure, Fun=Function)\n\nFrequency count:")
+ftable(df$Method, df$Outcome)
+writeLines("\nRelative Frequency %:")
+prop.table(ftable(df$Method, df$Outcome))
+
+writeLines("\nType of perturbation (Dev=Developmental, Mature)\n\nFrequency count:")
+ftable(df$Perturbation, df$Outcome)
+writeLines("\nRelative Frequency %:")
+prop.table(ftable(df$Perturbation, df$Outcome))
+
+writeLines("\nType of photoreceptor affected (Rod, Cone, Rod+Cone)\n\nFrequency count:")
+ftable(df$RodCone, df$Outcome)
+writeLines("\nRelative Frequency %:")
+prop.table(ftable(df$RodCone, df$Outcome))
+
+writeLines("\nType of Manipulation\n\nFrequency count:")
+ftable(df$Manipulation, df$Outcome)
+writeLines("\nRelative Frequency %:")
+prop.table(ftable(df$Manipulation, df$Outcome))
+
+```
+
+# Exploratory Plotting
+
+Some factors don't have enough variability (<5% or >95%), therefore they will not be excluded in the model.
+
+```{r Exploratory plotting}
+
+#par(mfrow = c(3, 5), mar=c(2,2,2,2))
+
+# Categorical
+plot(df$Outcome, df$Method, xlab = "Outcome", ylab = "Method of investigation")
+plot(df$Outcome, df$Perturbation, xlab = "Outcome", ylab = "Developmental vs Mature Perturbation")
+plot(df$Outcome, df$RodCone, xlab = "Outcome", ylab = "Type of photoreceptor involved")
+
+plot(df$Outcome, df$Phototransduction_YN, xlab = "Outcome", ylab = "Phototransduction")
+plot(df$Outcome, df$Signaling_YN, xlab = "Outcome", ylab = "Signaling")
+plot(df$Outcome, df$Trafficking_YN, xlab = "Outcome", ylab = "Trafficking")
+plot(df$Outcome, df$Metabolism_YN, xlab = "Outcome", ylab = "Metabolism")
+plot(df$Outcome, df$ImmuneDNA_YN, xlab = "Outcome", ylab = "Immune DNA")
+plot(df$Outcome, df$TF_YN, xlab = "Outcome", ylab = "Transcription Factors")
+
+plot(df$Outcome, df$Manipulation, xlab = "Outcome", ylab = "Manipulation (PT/Signaling/Trafficking/Others")
+
+# Numerical
+plot(df$Outcome, df$NormalizedAge, xlab = "Outcome", ylab = "Age (Normalized by development time)")
+plot(df$Outcome, df$NormalizedInterval, xlab = "Outcome", ylab = "Interval (Normalized by development time)")
+plot(df$Outcome, df$EntirePR, xlab = "Outcome", ylab = "Entire PR")
+plot(df$Outcome, df$SpecificPR, xlab = "Outcome", ylab = "Specific PR")
+```
+
+# Model 1: All parameters
+## Multinomial Regression Model
+
+Multinomial regression (nnet:multinom), it is a log-linear model for which the resulting coefficients reflect the ratio of probability
+
+```{r model 1}
+
+df$Outcome<-relevel(df$Outcome, ref="Stability")
+
+mdl <- multinom(Outcome ~ Method + RodCone +  Manipulation + NormalizedAge + NormalizedInterval + EntirePR + SpecificPR, data = df)
+summary(mdl)
+```
+
+## ANOVA
+
+Parameters significant for the model are: Method of investigation, Rod/Cone affected, and Entire PR affected.
+
+```{R ANOVA model 1}
+Anova(mdl)
+```
+
+# Model 2: Method + RodCone
+## Multinomial Regression Model
+
+Multinomial regression (nnet:multinom), it is a log-linear model for which the resulting coefficients reflect the ratio of probability
+Removed the Manipulation parameter because not significant in the model
+
+```{r model 2}
+
+df$Outcome<-relevel(df$Outcome, ref="Stability")
+
+mdl <- multinom(Outcome ~ Method + RodCone + NormalizedAge + NormalizedInterval + EntirePR + SpecificPR, data = df)
+summary(mdl)
+```
+
+## ANOVA
+
+Parameters significant for the model are: Method of investigation, Rod/Cone affected, and Entire PR affected.
+
+```{R anova model 2}
+Anova(mdl)
+```
+## Wald-test (2-tailed z test)
+```{r Z-test}
+z <- summary(mdl)$coefficients/summary(mdl)$standard.errors
+p <- (1 - pnorm(abs(z), 0, 1)) * 2
+p
+```
+
+## Relative risk
+
+```{r extract coefficients}
+writeLines("Ratio of the probability of choosing one outcome category over the reference category.\nOften referred as relative risk (and sometimes referred to as odds).\nCalculated by extracting the coefficients from the model and exponentiating\n")
+exp(coef(mdl))
+
+#writeLines("\nPredicted probabilities for the source data (head of table)")
+#head(fitted(mdl))
+```
+
+## Predicted probabilities
+### Categorical Parameters
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ztable)
+library(magrittr)
+options(ztable.type = "html")
+```
+
+```{r predicted probabilities, results='asis'}
+dsimStr <- data.frame(Method = "Str", 
+                   RodCone = levels(df$RodCone), 
+                   NormalizedAge = mean(df$NormalizedAge), 
+                   NormalizedInterval = mean(df$NormalizedInterval), 
+                   EntirePR = mean(df$EntirePR), 
+                   SpecificPR = mean(df$SpecificPR))
+predStr <- predict(mdl, newdata = dsimStr, "probs")
+
+dsimFun <- data.frame(Method = "Fun", 
+                   RodCone = levels(df$RodCone), 
+                   NormalizedAge = mean(df$NormalizedAge), 
+                   NormalizedInterval = mean(df$NormalizedInterval), 
+                   EntirePR = mean(df$EntirePR), 
+                   SpecificPR = mean(df$SpecificPR))
+predFun <- predict(mdl, newdata = dsimFun, "probs")
+
+predStrFun <- rbind(predStr, predFun)
+rgroup=c("Structure","Function")
+n.rgroup=c(3,3)
+dfPred <- as.data.frame(predStrFun)
+row.names(dfPred) <- NULL
+dfPred <- roundDf(dfPred, digits=2)
+Photoreceptor <- c(levels(df$RodCone),levels(df$RodCone)) 
+dfPred <- cbind(Photoreceptor, dfPred)
+z <- ztable(dfPred) %>%
+  addrgroup(rgroup=rgroup,n.rgroup=n.rgroup,cspan.rgroup=1) %>%
+  print(caption = "Predicted outcome probability by method and photoreceptor type")
+```
+
+### Age
+
+Predicts outcome based on age (normalized by developmental time) at which the pathology starts
+
+```{R Predicted Prob Age}
+dNormalizedAge <- data.frame(Method = rep(levels(df$Method), each = length(unique(df$NormalizedAge))*length(levels(df$RodCone))), 
+                   RodCone = rep(levels(df$RodCone), each = length(unique(df$NormalizedAge))), 
+                   NormalizedAge = rep(sort(unique(df$NormalizedAge)), length(levels(df$RodCone))), 
+                   NormalizedInterval = mean(df$NormalizedInterval), 
+                   EntirePR = mean(df$EntirePR), 
+                   SpecificPR = mean(df$SpecificPR))
+
+# Store the predicted probabilities for each value of RodCone and NormalizedAge and append as last 3 columns to data frame (last three columns)
+pred <- predict(mdl, newdata = dNormalizedAge, type = "probs", se = TRUE)
+pp <- cbind(dNormalizedAge, pred)
+
+# calculate the mean probabilities within each level of RodCone 
+#by(pp[, (ncol(pp)-2):ncol(pp)], pp$RodCone, colMeans)
+
+# Collapse the data frame by outcome
+lpp <- melt(pp, id.vars = c("RodCone", "NormalizedAge", "Method"), measure.vars = levels(df$Outcome), value.name = "Probability")
+
+# Plot predicted probabilities across NormalizedAge values for each level of RodCone facetted by Outcome and Method of Investigation
+ggplot(lpp, aes(x = NormalizedAge, y = Probability, colour = RodCone)) +
+  geom_line() + facet_grid(variable ~ Method, scales = "free_x") +
+  ggtitle("Predicted Outcome by Age (normalized by developmental time)") + 
+  theme(plot.title = element_text(hjust = 0.5)) + ylim(0,1)
+```
+
+### Interval
+
+Predicts outcome based on time interval (normalized by developmental time) during which the pathology develops
+
+```{R Predicted Prob NormalizedInterval}
+dNormalizedInterval <- data.frame(Method = rep(levels(df$Method), each = length(unique(df$NormalizedInterval))*length(levels(df$RodCone))), 
+                   RodCone = rep(levels(df$RodCone), each = length(unique(df$NormalizedInterval))), 
+                   NormalizedAge =  mean(df$NormalizedAge),
+                   NormalizedInterval = rep(sort(unique(df$NormalizedInterval)), length(levels(df$RodCone))), 
+                   EntirePR = mean(df$EntirePR), 
+                   SpecificPR = mean(df$SpecificPR))
+
+# Store the predicted probabilities for each value of RodCone and D50 and append as last 3 columns to dataframe (columns 9, 10, 11)
+pp <- cbind(dNormalizedInterval, predict(mdl, newdata = dNormalizedInterval, type = "probs", se = TRUE))
+
+# calculate the mean probabilities within each level of RodCone 
+#by(pp[, (ncol(pp)-2):ncol(pp)], pp$RodCone, colMeans)
+
+# Collapse the data frame by outcome
+lpp <- melt(pp, id.vars = c("RodCone", "NormalizedInterval", "Method"), measure.vars = levels(df$Outcome), value.name = "Probability")
+
+# Plot predicted probabilities across NormalizedInterval values for each level of RodCone facetted by Outcome and Method of investigation
+ggplot(lpp, aes(x = NormalizedInterval, y = Probability, colour = RodCone)) + 
+  geom_line() + facet_grid(variable ~ Method, scales = "free_x") + 
+  ggtitle("Predicted Outcome by Interval (normalized by developmental time)") + 
+  theme(plot.title = element_text(hjust = 0.5)) + ylim(0,1)
+```
+
+### Entire PR
+
+Predict probability by total amount of photoreceptors affected, assuming the following distribution:
+Cones: between 0 and 3%, Rods: between 0 and 97%
+
+```{R Predicted Prob Entire PR}
+percCone = seq(0, 3, by=0.5)
+percRod = seq(0, 97, by=0.5)
+percRodCone = seq(0, 100, by=0.5)
+
+dConePR = data.frame(Method = rep(levels(df$Method), each = length(percCone)), 
+                   RodCone = rep("Cone", each = length(percCone)), 
+                   NormalizedAge =  mean(df$NormalizedAge),
+                   NormalizedInterval = mean(df$NormalizedInterval), 
+                   EntirePR = percCone, 
+                   SpecificPR = mean(df$SpecificPR))
+
+dRodPR = data.frame(Method = rep(levels(df$Method), each = length(percRod)), 
+                   RodCone = rep("Rod", each = length(percRod)), 
+                   NormalizedAge =  mean(df$NormalizedAge),
+                   NormalizedInterval = mean(df$NormalizedInterval), 
+                   EntirePR = percRod, 
+                   SpecificPR = mean(df$SpecificPR))
+
+dRodConePR = data.frame(Method = rep(levels(df$Method), each = length(percRodCone)), 
+                   RodCone = rep("RodCone", each = length(percRodCone)), 
+                   NormalizedAge =  mean(df$NormalizedAge),
+                   NormalizedInterval = mean(df$NormalizedInterval), 
+                   EntirePR = percRodCone, 
+                   SpecificPR = mean(df$SpecificPR))
+
+dEntirePR = rbind(dConePR, dRodPR, dRodConePR)
+
+#dEntirePR <- data.frame(Method = rep(levels(df$Method), each = length(unique(df$EntirePR))*length(levels(df$RodCone))), 
+#                   RodCone = rep(levels(df$RodCone), each = length(unique(df$EntirePR))), 
+#                   NormalizedAge =  mean(df$NormalizedAge),
+#                   NormalizedInterval = mean(df$NormalizedInterval), 
+#                   EntirePR = rep(sort(unique(df$EntirePR)), length(levels(df$RodCone))), 
+#                   SpecificPR = mean(df$SpecificPR))
+
+# Store the predicted probabilities for each value of RodCone and D50 and append as last 3 columns to dataframe (columns 9, 10, 11)
+pp <- cbind(dEntirePR, predict(mdl, newdata = dEntirePR, type = "probs", se = TRUE))
+
+# calculate the mean probabilities within each level of RodCone 
+#by(pp[, (ncol(pp)-2):ncol(pp)], pp$RodCone, colMeans)
+
+# Collapse the data frame by outcome
+lpp <- melt(pp, id.vars = c("RodCone", "EntirePR", "Method"), measure.vars = levels(df$Outcome), value.name = "Probability")
+
+# Plot predicted probabilities across EntirePR values for each level of RodCone facetted by Outcome
+ggplot(lpp, aes(x = EntirePR, y = Probability, colour = RodCone)) + 
+  geom_line() + facet_grid(variable ~ Method, scales = "free")  + 
+  ggtitle("Predicted Outcome by Percentage of Enrire Photoreceptors Affected") + 
+  theme(plot.title = element_text(hjust = 0.5))  + ylim(0,1)
+```
+
+### Specific PR
+
+Predict probability of each outcome by the amount of scpecific photoreceptors affected.
+
+```{R Predicted Prob Specific PR}
+percRodCone = seq(0, 100, by=0.5)
+typePR = c("Rod", "Cone")
+
+dSpecificPR <- data.frame(Method = rep(levels(df$Method), each = length(percRodCone)*length(typePR)), 
+                   RodCone = rep(typePR, each = length(percRodCone)), 
+                   NormalizedAge =  mean(df$NormalizedAge),
+                   NormalizedInterval = mean(df$NormalizedInterval), 
+                   EntirePR =  mean(df$EntirePR),
+                   SpecificPR = rep(percRodCone, length(levels(df$Method))*length(typePR)))
+
+# Store the predicted probabilities for each value of RodCone and D50 and append as last 3 columns to dataframe (columns 9, 10, 11)
+pp <- cbind(dSpecificPR, predict(mdl, newdata = dSpecificPR, type = "probs", se = TRUE))
+
+# calculate the mean probabilities within each level of RodCone 
+#by(pp[, (ncol(pp)-2):ncol(pp)], pp$RodCone, colMeans)
+
+# Collapse the data frame by outcome
+lpp <- melt(pp, id.vars = c("RodCone", "SpecificPR", "Method"), measure.vars = levels(df$Outcome), value.name = "Probability")
+
+# Plot predicted probabilities across SpecificPR values for each level of RodCone facetted by Outcome
+ggplot(lpp, aes(x = SpecificPR, y = Probability, colour = RodCone)) + 
+  geom_line() + facet_grid(variable ~ Method, scales = "free")  + 
+  ggtitle("Predicted Outcome by Percentage of Specific Photoreceptors Affected") + 
+  theme(plot.title = element_text(hjust = 0.5))  + ylim(0,1)
+```
+
+# Model 3: RodCone
+## Multinomial Regression Model
+
+Multinomial regression (nnet:multinom), it is a log-linear model for which the resulting coefficients reflect the ratio of probability
+Removed the Manipulation parameter because not significant in the model and the Method of investigtion to simplify prediction
+
+```{r model 3}
+
+df$Outcome<-relevel(df$Outcome, ref="Stability")
+
+mdl <- multinom(Outcome ~ RodCone + NormalizedAge + NormalizedInterval + EntirePR + SpecificPR, data = df)
+summary(mdl)
+```
+
+## ANOVA
+
+Parameters significant for the model are: Rod/Cone affected and Entire PR affected.
+
+```{R anova model 3}
+Anova(mdl)
+```
+## Wald-test (2-tailed z test)
+```{r Z-test model 3}
+z <- summary(mdl)$coefficients/summary(mdl)$standard.errors
+p <- (1 - pnorm(abs(z), 0, 1)) * 2
+p
+```
+
+## Relative risk
+
+```{r extract coefficients model 3}
+writeLines("Ratio of the probability of choosing one outcome category over the reference category.\nOften referred as relative risk (and sometimes referred to as odds).\nCalculated by extracting the coefficients from the model and exponentiating\n")
+exp(coef(mdl))
+
+#writeLines("\nPredicted probabilities for the source data (head of table)")
+#head(fitted(mdl))
+```
+
+## Predicted probabilities
+### Categorical Parameters
+
+```{r predicted probabilities model 3, results='asis'}
+dsim <- data.frame(RodCone = levels(df$RodCone), 
+                   NormalizedAge = mean(df$NormalizedAge), 
+                   NormalizedInterval = mean(df$NormalizedInterval), 
+                   EntirePR = mean(df$EntirePR), 
+                   SpecificPR = mean(df$SpecificPR))
+pred <- predict(mdl, newdata = dsim, "probs")
+
+dfPred <- as.data.frame(pred)
+row.names(dfPred) <- NULL
+dfPred <- roundDf(dfPred, digits=2)
+Photoreceptor <- c(levels(df$RodCone)) 
+dfPred <- cbind(Photoreceptor, dfPred)
+z <- ztable(dfPred) %>%
+  print(caption = "Predicted outcome probability by photoreceptor type")
+```
+
+### Age
+
+Predicts outcome based on age (normalized by developmental time) at which the pathology starts
+
+```{R Predicted Prob Age model 3}
+# Distribution of data (cone = 0 to 1.428, rod = 0 to 1.428, rod/cone 0 to 2.666)
+percCone = seq(0, 3.0, by=0.5)
+percRod = seq(0, 3.0, by=0.5)
+percRodCone = seq(0, 3.0, by=0.5)
+
+dConePR <-data.frame(RodCone = rep("Cone", each = length(percCone)), 
+                   NormalizedAge =  percCone,
+                   NormalizedInterval = mean(df$NormalizedInterval), 
+                   EntirePR =  mean(df$EntirePR), 
+                   SpecificPR = mean(df$SpecificPR))
+
+dRodPR <-data.frame(RodCone = rep("Rod", each = length(percRod)), 
+                   NormalizedAge =  percRod,
+                   NormalizedInterval = mean(df$NormalizedInterval), 
+                   EntirePR = mean(df$EntirePR), 
+                   SpecificPR = mean(df$SpecificPR))
+  
+dRodConePR <- data.frame(RodCone = rep("RodCone", each = length(percRodCone)), 
+                   NormalizedAge =  percRodCone,
+                   NormalizedInterval = mean(df$NormalizedInterval), 
+                   EntirePR = mean(df$EntirePR), 
+                   SpecificPR = mean(df$SpecificPR))
+
+dNormalizedAge <- rbind(dConePR, dRodPR, dRodConePR)
+# Store the predicted probabilities for each value of RodCone and NormalizedAge and append as last 3 columns to data frame (last three columns)
+pred <- predict(mdl, newdata = dNormalizedAge, type = "probs", se = TRUE)
+pp <- cbind(dNormalizedAge, pred)
+
+# calculate the mean probabilities within each level of RodCone 
+#by(pp[, (ncol(pp)-2):ncol(pp)], pp$RodCone, colMeans)
+
+# Collapse the data frame by outcome
+lpp <- melt(pp, id.vars = c("RodCone", "NormalizedAge"), measure.vars = levels(df$Outcome), value.name = "Probability")
+
+# Plot predicted probabilities across NormalizedAge values for each level of RodCone facetted by Outcome and Method of Investigation
+ggplot(lpp, aes(x = NormalizedAge, y = Probability, colour = RodCone)) +
+  geom_line() + facet_grid(variable ~ ., scales = "free_x") +
+  ggtitle("Predicted Outcome by Age (normalized by developmental time)") + 
+  theme(plot.title = element_text(hjust = 0.5)) + ylim(0,1)
+```
+
+### Interval
+
+Predicts outcome based on time interval (normalized by developmental time) during which the pathology develops
+
+```{R Predicted Prob NormalizedInterval model 3}
+# Distribution of data (cone = 0 to 24.28, rod = 0 to 40, rod/cone 0 to 34.28)
+percCone = seq(0, 40, by=2)
+percRod = seq(0, 40, by=2)
+percRodCone = seq(0, 40, by=2)
+
+dConePR <-data.frame(RodCone = rep("Cone", each = length(percCone)), 
+                   NormalizedAge =  mean(df$NormalizedAge),
+                   NormalizedInterval = percCone, 
+                   EntirePR =  mean(df$EntirePR), 
+                   SpecificPR = mean(df$SpecificPR))
+
+dRodPR <-data.frame(RodCone = rep("Rod", each = length(percRod)), 
+                   NormalizedAge =  mean(df$NormalizedAge),
+                   NormalizedInterval = percRod, 
+                   EntirePR = mean(df$EntirePR), 
+                   SpecificPR = mean(df$SpecificPR))
+  
+dRodConePR <- data.frame(RodCone = rep("RodCone", each = length(percRodCone)), 
+                   NormalizedAge =  mean(df$NormalizedAge),
+                   NormalizedInterval =percRodCone, 
+                   EntirePR = mean(df$EntirePR), 
+                   SpecificPR = mean(df$SpecificPR))
+
+dNormalizedInterval <- rbind(dConePR, dRodPR, dRodConePR)
+# Store the predicted probabilities for each value of RodCone and D50 and append as last 3 columns to dataframe (columns 9, 10, 11)
+pp <- cbind(dNormalizedInterval, predict(mdl, newdata = dNormalizedInterval, type = "probs", se = TRUE))
+
+# calculate the mean probabilities within each level of RodCone 
+#by(pp[, (ncol(pp)-2):ncol(pp)], pp$RodCone, colMeans)
+
+# Collapse the data frame by outcome
+lpp <- melt(pp, id.vars = c("RodCone", "NormalizedInterval"), measure.vars = levels(df$Outcome), value.name = "Probability")
+
+# Plot predicted probabilities across NormalizedInterval values for each level of RodCone facetted by Outcome and Method of investigation
+ggplot(lpp, aes(x = NormalizedInterval, y = Probability, colour = RodCone)) + 
+  geom_line() + facet_grid(variable ~ ., scales = "free_x") + 
+  ggtitle("Predicted Outcome by Interval (normalized by developmental time)") + 
+  theme(plot.title = element_text(hjust = 0.5)) + ylim(0,1)
+```
+
+### Entire PR
+
+Predict probability by total amount of photoreceptors affected, assuming the following distribution:
+Cones: between 0 and 3%, Rods: between 0 and 97%
+
+```{R Predicted Prob Entire PR model 3}
+percCone = seq(0, 3, by=0.5)
+percRod = seq(0, 97, by=0.5)
+percRodCone = seq(0, 100, by=0.5)
+
+dConePR <-data.frame(RodCone = rep("Cone", each = length(percCone)), 
+                   NormalizedAge =  mean(df$NormalizedAge),
+                   NormalizedInterval = mean(df$NormalizedInterval), 
+                   EntirePR = percCone, 
+                   SpecificPR = mean(df$SpecificPR))
+
+dRodPR <-data.frame(RodCone = rep("Rod", each = length(percRod)), 
+                   NormalizedAge =  mean(df$NormalizedAge),
+                   NormalizedInterval = mean(df$NormalizedInterval), 
+                   EntirePR = percRod, 
+                   SpecificPR = mean(df$SpecificPR))
+  
+dRodConePR <- data.frame(RodCone = rep("RodCone", each = length(percRodCone)), 
+                   NormalizedAge =  mean(df$NormalizedAge),
+                   NormalizedInterval = mean(df$NormalizedInterval), 
+                   EntirePR = percRodCone, 
+                   SpecificPR = mean(df$SpecificPR))
+
+dEntirePR <- rbind(dConePR, dRodPR, dRodConePR)
+
+# Store the predicted probabilities for each value of RodCone and D50 and append as last 3 columns to dataframe (columns 9, 10, 11)
+pp <- cbind(dEntirePR, predict(mdl, newdata = dEntirePR, type = "probs", se = TRUE))
+
+# calculate the mean probabilities within each level of RodCone 
+#by(pp[, (ncol(pp)-2):ncol(pp)], pp$RodCone, colMeans)
+
+# Collapse the data frame by outcome
+lpp <- melt(pp, id.vars = c("RodCone", "EntirePR"), measure.vars = levels(df$Outcome), value.name = "Probability")
+
+# Plot predicted probabilities across EntirePR values for each level of RodCone facetted by Outcome
+ggplot(lpp, aes(x = EntirePR, y = Probability, colour = RodCone)) + 
+  geom_line() + facet_grid(variable ~ ., scales = "free")  + 
+  ggtitle("Predicted Outcome by Percentage of Enrire Photoreceptors Affected") + 
+  theme(plot.title = element_text(hjust = 0.5))  + ylim(0,1)
+```
+
+### Specific PR
+
+Predict probability of each outcome by the amount of scpecific photoreceptors affected.
+
+```{R Predicted Prob Specific PR model 3}
+percRodCone = seq(0, 100, by=0.5)
+typePR = c("Rod", "Cone")
+
+dSpecificPR <- data.frame(RodCone = rep(typePR, each = length(percRodCone)), 
+                   NormalizedAge =  mean(df$NormalizedAge),
+                   NormalizedInterval = mean(df$NormalizedInterval), 
+                   EntirePR =  mean(df$EntirePR),
+                   SpecificPR = rep(percRodCone, length(typePR)))
+
+# Store the predicted probabilities for each value of RodCone and D50 and append as last 3 columns to dataframe (columns 9, 10, 11)
+pp <- cbind(dSpecificPR, predict(mdl, newdata = dSpecificPR, type = "probs", se = TRUE))
+
+# calculate the mean probabilities within each level of RodCone 
+#by(pp[, (ncol(pp)-2):ncol(pp)], pp$RodCone, colMeans)
+
+# Collapse the data frame by outcome
+lpp <- melt(pp, id.vars = c("RodCone", "SpecificPR"), measure.vars = levels(df$Outcome), value.name = "Probability")
+
+# Plot predicted probabilities across SpecificPR values for each level of RodCone facetted by Outcome
+ggplot(lpp, aes(x = SpecificPR, y = Probability, colour = RodCone)) + 
+  geom_line() + facet_grid(variable ~ ., scales = "free")  + 
+  ggtitle("Predicted Outcome by Percentage of Specific Photoreceptors Affected") + 
+  theme(plot.title = element_text(hjust = 0.5))  + ylim(0,1)
+```
+
+# Model 4: Manipulation
+## Multinomial Regression Model
+
+Multinomial regression (nnet:multinom), it is a log-linear model for which the resulting coefficients reflect the ratio of probability
+Removed the Manipulation parameter because not significant in the model and the Method of investigtion to simplify prediction
+
+```{r model 4}
+
+df$Outcome<-relevel(df$Outcome, ref="Stability")
+
+mdl <- multinom(Outcome ~ Manipulation, data = df)
+summary(mdl)
+```
+
+## ANOVA
+
+Parameters significant for the model are: Rod/Cone affected and Entire PR affected.
+
+```{R anova model 4}
+Anova(mdl)
+```
+## Wald-test (2-tailed z test)
+```{r Z-test model 4}
+z <- summary(mdl)$coefficients/summary(mdl)$standard.errors
+p <- (1 - pnorm(abs(z), 0, 1)) * 2
+p
+```
+
+## Relative risk
+
+```{r extract coefficients model 4}
+writeLines("Ratio of the probability of choosing one outcome category over the reference category.\nOften referred as relative risk (and sometimes referred to as odds).\nCalculated by extracting the coefficients from the model and exponentiating\n")
+exp(coef(mdl))
+
+#writeLines("\nPredicted probabilities for the source data (head of table)")
+#head(fitted(mdl))
+```
+
+## Predicted probabilities
+### Categorical Parameters
+
+```{r predicted probabilities model 4, results='asis'}
+dsim <- data.frame(Manipulation = levels(df$Manipulation))
+pred <- predict(mdl, newdata = dsim, "probs")
+
+dfPred <- as.data.frame(pred)
+row.names(dfPred) <- NULL
+dfPred <- roundDf(dfPred, digits=2)
+Manipulation <- c(levels(df$Manipulation)) 
+dfPred <- cbind(Manipulation, dfPred)
+z <- ztable(dfPred) %>%
+  print(caption = "Predicted utcome probability by manipulation")
+```
+
+# Session Info
+```{r session info}
+sessionInfo()
+```
