@@ -240,6 +240,12 @@ ggplot(lpp, aes(x = NormalizedAge, y = Probability, colour = RodCone)) +
   geom_line() + facet_grid(variable ~ Method, scales = "free_x") +
   ggtitle("Predicted Outcome by Age (normalized by developmental time)") + 
   theme(plot.title = element_text(hjust = 0.5)) + ylim(0,1)
+
+# Plot predicted probabilities across NormalizedAge values for each level of Outcome facetted by RodCone and Method of Investigation
+ggplot(lpp, aes(x = NormalizedAge, y = Probability, colour = variable)) +
+  geom_line() + facet_grid(RodCone ~ Method, scales = "free_x") +
+  ggtitle("Predicted Outcome by Age (normalized by developmental time)") + 
+  theme(plot.title = element_text(hjust = 0.5)) + ylim(0,1)
 ```
 
 ### Interval
@@ -266,6 +272,12 @@ lpp <- melt(pp, id.vars = c("RodCone", "NormalizedInterval", "Method"), measure.
 # Plot predicted probabilities across NormalizedInterval values for each level of RodCone facetted by Outcome and Method of investigation
 ggplot(lpp, aes(x = NormalizedInterval, y = Probability, colour = RodCone)) + 
   geom_line() + facet_grid(variable ~ Method, scales = "free_x") + 
+  ggtitle("Predicted Outcome by Interval (normalized by developmental time)") + 
+  theme(plot.title = element_text(hjust = 0.5)) + ylim(0,1)
+
+# Plot predicted probabilities across NormalizedInterval values for each level of Outcome facetted by RodCone and Method of investigation
+ggplot(lpp, aes(x = NormalizedInterval, y = Probability, colour = variable)) + 
+  geom_line() + facet_grid(RodCone ~ Method, scales = "free_x") + 
   ggtitle("Predicted Outcome by Interval (normalized by developmental time)") + 
   theme(plot.title = element_text(hjust = 0.5)) + ylim(0,1)
 ```
@@ -319,9 +331,15 @@ pp <- cbind(dEntirePR, predict(mdl, newdata = dEntirePR, type = "probs", se = TR
 # Collapse the data frame by outcome
 lpp <- melt(pp, id.vars = c("RodCone", "EntirePR", "Method"), measure.vars = levels(df$Outcome), value.name = "Probability")
 
-# Plot predicted probabilities across EntirePR values for each level of RodCone facetted by Outcome
+# Plot predicted probabilities across EntirePR values for each level of RodCone facetted by Outcome and Method
 ggplot(lpp, aes(x = EntirePR, y = Probability, colour = RodCone)) + 
   geom_line() + facet_grid(variable ~ Method, scales = "free")  + 
+  ggtitle("Predicted Outcome by Percentage of Enrire Photoreceptors Affected") + 
+  theme(plot.title = element_text(hjust = 0.5))  + ylim(0,1)
+
+# Plot predicted probabilities across EntirePR values for each level of Outcome facetted by RodCone and Method
+ggplot(lpp, aes(x = EntirePR, y = Probability, colour = variable)) + 
+  geom_line() + facet_grid(RodCone ~ Method, scales = "free")  + 
   ggtitle("Predicted Outcome by Percentage of Enrire Photoreceptors Affected") + 
   theme(plot.title = element_text(hjust = 0.5))  + ylim(0,1)
 ```
@@ -350,9 +368,15 @@ pp <- cbind(dSpecificPR, predict(mdl, newdata = dSpecificPR, type = "probs", se 
 # Collapse the data frame by outcome
 lpp <- melt(pp, id.vars = c("RodCone", "SpecificPR", "Method"), measure.vars = levels(df$Outcome), value.name = "Probability")
 
-# Plot predicted probabilities across SpecificPR values for each level of RodCone facetted by Outcome
+# Plot predicted probabilities across SpecificPR values for each level of RodCone facetted by Outcome and Method
 ggplot(lpp, aes(x = SpecificPR, y = Probability, colour = RodCone)) + 
   geom_line() + facet_grid(variable ~ Method, scales = "free")  + 
+  ggtitle("Predicted Outcome by Percentage of Specific Photoreceptors Affected") + 
+  theme(plot.title = element_text(hjust = 0.5))  + ylim(0,1)
+
+# Plot predicted probabilities across SpecificPR values for each level of Outcome facetted by RodCone and Method
+ggplot(lpp, aes(x = SpecificPR, y = Probability, colour = variable)) + 
+  geom_line() + facet_grid(RodCone ~ Method, scales = "free")  + 
   ggtitle("Predicted Outcome by Percentage of Specific Photoreceptors Affected") + 
   theme(plot.title = element_text(hjust = 0.5))  + ylim(0,1)
 ```
@@ -454,11 +478,21 @@ pp <- cbind(dNormalizedAge, pred)
 # Collapse the data frame by outcome
 lpp <- melt(pp, id.vars = c("RodCone", "NormalizedAge"), measure.vars = levels(df$Outcome), value.name = "Probability")
 
-# Plot predicted probabilities across NormalizedAge values for each level of RodCone facetted by Outcome and Method of Investigation
+# Plot predicted probabilities across NormalizedAge values for each level of RodCone facetted by Outcome
 ggplot(lpp, aes(x = NormalizedAge, y = Probability, colour = RodCone)) +
   geom_line() + facet_grid(variable ~ ., scales = "free_x") +
   ggtitle("Predicted Outcome by Age (normalized by developmental time)") + 
   theme(plot.title = element_text(hjust = 0.5)) + ylim(0,1)
+
+# Collapse the data frame by RodCone
+lpp <- melt(pp, id.vars = c("RodCone", "NormalizedAge"), measure.vars = levels(df$Outcome), value.name = "Probability")
+
+# Plot predicted probabilities across NormalizedAge values for each level of Outcome facetted by RodCone
+ggplot(lpp, aes(x = NormalizedAge, y = Probability, colour = variable)) +
+  geom_line() + facet_grid(RodCone ~ ., scales = "free_x") +
+  ggtitle("Predicted Outcome by Age (normalized by developmental time)") + 
+  theme(plot.title = element_text(hjust = 0.5)) + ylim(0,1)
+
 ```
 
 ### Interval
@@ -499,9 +533,15 @@ pp <- cbind(dNormalizedInterval, predict(mdl, newdata = dNormalizedInterval, typ
 # Collapse the data frame by outcome
 lpp <- melt(pp, id.vars = c("RodCone", "NormalizedInterval"), measure.vars = levels(df$Outcome), value.name = "Probability")
 
-# Plot predicted probabilities across NormalizedInterval values for each level of RodCone facetted by Outcome and Method of investigation
+# Plot predicted probabilities across NormalizedInterval values for each level of RodCone facetted by Outcome
 ggplot(lpp, aes(x = NormalizedInterval, y = Probability, colour = RodCone)) + 
   geom_line() + facet_grid(variable ~ ., scales = "free_x") + 
+  ggtitle("Predicted Outcome by Interval (normalized by developmental time)") + 
+  theme(plot.title = element_text(hjust = 0.5)) + ylim(0,1)
+
+# Plot predicted probabilities across NormalizedInterval values for each level of Oucome facetted by RodCone
+ggplot(lpp, aes(x = NormalizedInterval, y = Probability, colour = variable)) + 
+  geom_line() + facet_grid(RodCone ~ ., scales = "free_x") + 
   ggtitle("Predicted Outcome by Interval (normalized by developmental time)") + 
   theme(plot.title = element_text(hjust = 0.5)) + ylim(0,1)
 ```
@@ -550,6 +590,12 @@ ggplot(lpp, aes(x = EntirePR, y = Probability, colour = RodCone)) +
   geom_line() + facet_grid(variable ~ ., scales = "free")  + 
   ggtitle("Predicted Outcome by Percentage of Enrire Photoreceptors Affected") + 
   theme(plot.title = element_text(hjust = 0.5))  + ylim(0,1)
+
+# Plot predicted probabilities across EntirePR values for each level of Oucome facetted by RodCone
+ggplot(lpp, aes(x = EntirePR, y = Probability, colour = variable)) + 
+  geom_line() + facet_grid(RodCone ~ ., scales = "free")  + 
+  ggtitle("Predicted Outcome by Percentage of Enrire Photoreceptors Affected") + 
+  theme(plot.title = element_text(hjust = 0.5))  + ylim(0,1)
 ```
 
 ### Specific PR
@@ -578,6 +624,12 @@ lpp <- melt(pp, id.vars = c("RodCone", "SpecificPR"), measure.vars = levels(df$O
 # Plot predicted probabilities across SpecificPR values for each level of RodCone facetted by Outcome
 ggplot(lpp, aes(x = SpecificPR, y = Probability, colour = RodCone)) + 
   geom_line() + facet_grid(variable ~ ., scales = "free")  + 
+  ggtitle("Predicted Outcome by Percentage of Specific Photoreceptors Affected") + 
+  theme(plot.title = element_text(hjust = 0.5))  + ylim(0,1)
+
+# Plot predicted probabilities across SpecificPR values for each level of Oucome facetted by RodCone
+ggplot(lpp, aes(x = SpecificPR, y = Probability, colour = variable)) + 
+  geom_line() + facet_grid(RodCone ~ ., scales = "free")  + 
   ggtitle("Predicted Outcome by Percentage of Specific Photoreceptors Affected") + 
   theme(plot.title = element_text(hjust = 0.5))  + ylim(0,1)
 ```
